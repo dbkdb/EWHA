@@ -1,0 +1,189 @@
+---
+title: "shiny"
+author: "248STG01 김다빈"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# 0. Library
+
+```{r}
+
+library(shinydashboard)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(lubridate)
+library(DT)
+```
+
+
+# 1. Load Data
+
+```{r}
+data_2019 <- read_excel('★2019~2023 학교안전사고 데이터_수정.xlsx', 3)
+data_2020 <- read_excel('★2019~2023 학교안전사고 데이터_수정.xlsx', 4)
+data_2021 <- read_excel('★2019~2023 학교안전사고 데이터_수정.xlsx', 5)
+data_2022 <- read_excel('★2019~2023 학교안전사고 데이터_수정.xlsx', 6)
+data_2023 <- read_excel('★2019~2023 학교안전사고 데이터_수정.xlsx', 7)
+
+data <- bind_rows(list(grp_1 = data_2019, grp_2 = data_2020, grp_3 = data_2021,
+                       grp_4 = data_2022, grp_5 = data_2023))
+
+
+data$Date <- paste(data$사고발생일 , data$사고발생시각)
+data$Date <- as.POSIXct(data$Date, tryFormats = "%Y-%m-%d %H:%M")
+data$사고발생일 <- as.Date(data$사고발생일)
+
+
+```
+
+
+# 2. 연도에 따른 사고자성별, 학년, 장소 빈도수 분포 확인
+
+
+```{r}
+ui <- fluidPage(
+  titlePanel("Display Plots"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("xvar", 
+                  label = "Choose a variable to display",
+                  choices = list("사고자성별",
+                                 "사고자학년",
+                                 "사고장소"),
+                  selected = "사고자성별"),
+      
+      radioButtons("plot_type", 
+                    h3("Select the plot type"),
+                    choices = list("barplot" = 1,
+                                   "pie chart" = 2),
+                    selected = 1),
+      
+      sliderInput("year",
+                  "Number of bins:",
+                  min = 2019,
+                  max = 2023,
+                  value = 2019),
+      
+      submitButton(text = '실행')
+    ),
+    mainPanel(
+      plotOutput("distPlot", width='80%', height='600px')
+    )
+  )
+)
+
+server <- function(input, output) {
+  output$distPlot <- renderPlot({
+    if(input$year == 2019){
+      data = data_2019
+    }else if(input$year == 2020){
+      data = data_2020
+    }else if(input$year == 2021){
+      data = data_2021
+    }else if(input$year == 2022){
+      data = data_2023
+    }else if(input$year == 2023){
+      data = data_2023
+    }
+    g = ggplot(data, aes_string(x = input$xvar ) )
+    if(input$plot_type == 1){
+      g = ggplot(data, aes_string(x = input$xvar) ) 
+      g = g + geom_bar()
+    }else if(input$plot_type == 2){
+      g = g + geom_bar()  + coord_polar("y", start=0)
+    }else{
+       NULL
+    }
+      g + theme_bw(base_size = 20) +
+          theme(legend.position = "bottom")
+ })
+}
+
+shinyApp(ui, server)
+```
+
+
+# 3. 2024-07-23
+
+
+```{r}
+ui <- fluidPage(
+  titlePanel("시점별 학교 안전사고 패턴 분석"),
+  navbarPage("목록",
+             tabPanel("Time series",
+                    
+                       mainPanel(
+                         plotOutput("timeplot")
+                       )
+            
+                      
+    
+                     ),
+             tabPanel("Frequency",
+                      sidebarLayout(
+                        sidebarPanel(
+                          selectInput("xvar", label = 'Choose year to display',
+                                      choices = list('사고자성별','사고자학년',
+                                                     '사고장소'),
+                                      selected = '사고자성별'),
+                          
+                          radioButtons("plot type",
+                                       h3("Select the plot type"),
+                                       choices = list('barplot' = 1,
+                                                      'pie chart' = 2),
+                                       selected = 1),
+                          sliderInput("year", "Number of bins : ", min = 2019, max = 2023, value = 2019)
+                        ),
+                        mainPanel(
+                          plotOutput("distPlot", width = '80%', height = '600px' )
+                        )
+                      )
+)
+)
+)
+
+             
+server <- function(input,out, session){
+  
+  output$distPlot <- renderPlot({
+    if(input$year <= 2019){
+      data = data_2019
+    }else if(input$year == 2020){
+      data = data_2020
+    }else if(input$year == 2021){
+      data = data_2021
+    }else if(input$year == 2022){
+      data = data_2023
+    }else if(input$year == 2023){
+      data = data_2023
+    }
+    g = ggplot(data, aes_string(x = input$xvar ) )
+    if(input$plot_type == 1){
+      g = ggplot(data, aes_string(x = input$xvar) ) 
+      g = g + geom_bar()
+    }else if(input$plot_type == 2){
+      g = g + geom_bar()  + coord_polar("y", start=0)
+    }else{
+       NULL
+    }
+      g + theme_bw(base_size = 20) +
+          theme(legend.position = "bottom")
+ })
+  
+  output$timeplot <- renderPlot({
+    
+    ggplot(data, aes(x = Date)) + geom_histogram()
+    
+  })
+  
+  
+  
+}
+
+shinyApp(ui, server)           
+             
+```
+
