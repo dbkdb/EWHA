@@ -1,0 +1,623 @@
+---
+title: "학교 안전사고 코드"
+author: "248STG01 김다빈"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# 0. 필요한 라이브러리 불러오기
+
+```{r}
+library(shinydashboard)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(lubridate)
+library(DT)
+library(shiny)
+library(markdown)
+library(grid)
+library(gridExtra)
+library(ggmosaic)
+library(tidyr)
+library(ggthemes)
+```
+
+
+# 1. 데이터 전처리
+
+```{r}
+data_2019 <- read_excel('★2019~2023 학교안전사고 데이터_수정.xlsx', 3)
+data_2020 <- read_excel('★2019~2023 학교안전사고 데이터_수정.xlsx', 4)
+data_2021 <- read_excel('★2019~2023 학교안전사고 데이터_수정.xlsx', 5)
+data_2022 <- read_excel('★2019~2023 학교안전사고 데이터_수정.xlsx', 6)
+data_2023 <- read_excel('★2019~2023 학교안전사고 데이터_수정.xlsx', 7)
+
+data <- bind_rows(list(grp_1 = data_2019, grp_2 = data_2020, grp_3 = data_2021,
+                       grp_4 = data_2022, grp_5 = data_2023))
+
+
+data$Date <- paste(data$사고발생일 , data$사고발생시각)
+data$Date <- as.POSIXct(data$Date, tryFormats = "%Y-%m-%d %H:%M")
+data$사고발생일 <- as.Date(data$사고발생일)
+
+data <-  data %>% filter(year(data$Date) >= 2019, ) %>% drop_na()
+
+```
+
+
+# 2. Shiny (시점별, 방학과 학기 구분, 계절)
+
+```{r}
+ui <- fluidPage(
+  titlePanel("시각화 대시보드"),
+  navbarPage("목록",
+                 tabPanel("특징별 사고 발생 건수",
+                          sidebarLayout(
+                            sidebarPanel(
+                              selectInput("xvar",
+                                          label = 'Choose a variable to display',
+                                          choices = list("사고자성별","사고자학년","사고장소","사고발생요일","사고시간","학교급"),selected = "사고자성별"),
+                              radioButtons("plot_type",
+                                           h3("Select the plot type"),
+                                           choices = list("barplot" = 1, "pie chart" = 2), selected = 1),
+                              sliderInput("year", "Number of bins:",
+                                          min = 2019, max = 2023,value = 2019),
+                              submitButton(text = '실행')
+                            ),
+                            mainPanel(
+                              plotOutput("distPlot",width = '90%', height = '500px')
+                            )
+                          )
+                 ),
+                 tabPanel("시점에 따른 사고 추세",
+                    sidebarLayout(                             
+                     sidebarPanel(
+                       dateRangeInput('date', "Date range : ",
+                                      start = '2019-01-01',
+                                      end = '2023-12-30'),
+                       
+                       selectInput('xvar', label = 'Choose a variable to display',
+                                    choices =list("사고자성별", "학교급","사고장소",
+                                                  "설립유형","사고장소","사고자학년","학교급")
+                      ),
+                      
+                      sliderInput('alpha', '투명도 조절', min = 0,max = 1, value = 0.5),
+                      
+                      br(),
+                      checkboxInput('all', "선택한 변수 따라 보기", value = FALSE),
+                      submitButton(text = '실행')
+
+                     ),  
+                                            
+                      mainPanel(
+                        plotOutput("timePlot", width = '80%')
+                      )
+                    )
+                    
+                 ),
+             
+             tabPanel("계절별 추세 분석",
+                      sidebarLayout(
+                        sidebarPanel(width = 3,
+                          selectInput('season',label = "Choose a Season to display",
+                                      choices = list("봄", "여름", "가을","겨울"),
+                                      selected = '봄'),
+                          selectInput('xvar', label = "Choose a variable to display",
+                                       choices = list("사고장소", "사고부위","사고형태"),
+                            selected = "사고장소"
+                          ),
+                          sliderInput("year","Choose year to display :",min = 2019,max = 2023,
+                            value = 2019
+                          ),
+                          submitButton(text = '실행')
+                        ),
+                        mainPanel(plotOutput("seasonplot", height = '500px',width = '800px'))
+                      )
+             ),
+             
+             tabPanel("24시간 내 추세 파악",
+                      sidebarLayout(
+                        sidebarPanel(width = 3,
+                          sliderInput("hour","Choose an hour to display :",
+                                      min = 0, max = 23, value = 12),
+                        
+                        sliderInput("year", "Choose year to display :",
+                          min = 2019,max = 2023, value = 2019
+                        ), 
+                        selectInput("xvar",label = "Choose a variable to display",
+                                   choices = list("사고장소", "사고부위", "사고형태"),
+                                   selected = "사고장소"
+                      ),
+                      submitButton(text = '실행')
+                      ),
+                      mainPanel(
+                        plotOutput('hourplot', height = '400px',width = '700px')
+                      )
+                      )
+             ),
+             tabPanel('방학과 학기 비교 (1)',
+                      sidebarLayout(
+                        sidebarPanel(width = 3,
+                          selectInput('xvar', label = "Choose a variable to display",
+                                      choices = list('사고장소', '사고부위','사고형태'),
+                                      selected = '사고장소'),
+ 
+                          submitButton(text = '실행')
+                        ),
+                        mainPanel(
+                          plotOutput('mosplot' , height = '500px',width = '700px' )
+                        )
+                      )
+                      ),
+             tabPanel('방학과 학기 비교 (2)',
+                      sidebarLayout(
+                        sidebarPanel(width = 3,
+                          sliderInput("year", "Choose year to display :",
+                          min = 2019,max = 2023, value = 2019
+                        ),
+                        selectInput('xvar', label = "Choose a variable to display",
+                                      choices = list('사고장소', '사고부위','사고형태'),
+                                      selected = '사고장소'),
+                              submitButton(text = '실행')
+                        ),
+                        mainPanel(
+                          plotOutput('vacplot' , height = '400px',width = '700px' )
+                        )
+                      )
+                      )
+
+  )
+)
+
+
+server <- function(input, output,session) {
+  output$distPlot <- renderPlot({
+    
+    data <- data[year(data$Date) == input$year, ] 
+
+    if(input$plot_type == 1){
+    
+     ggplot(data, aes_string(x = input$xvar,fill = input$xvar) )  + geom_bar() + stat_count(geom = "text", size = 4.5,
+aes(label = ..count..)) + scale_fill_brewer(palette="Blues", direction = -1) +theme( axis.text.y=element_blank(), axis.text.x=element_text(angle=45,size=10),
+legend.title = element_text(size = 15, face = 'bold'))
+
+
+    }else if(input$plot_type == 2){
+      data %>% group_by_at(input$xvar) %>% summarise(n = n()) %>% mutate(pct = n/sum(n)*100) %>%
+        ggplot(aes(x = '', y = n)) + geom_bar(aes_string(fill = input$xvar), stat = 'identity',width =10 )  + coord_polar(theta = 'y',start =0) + scale_fill_brewer(palette="PuBu") 
+      
+    }else{
+       NULL
+    }
+   
+ })
+  
+  output$timePlot <- renderPlot({
+    data <- data %>% filter(data$사고발생일 >= input$date[1] & data$사고발생일 <= input$date[2])
+
+    if(input$all == FALSE) {
+       ggplot(data,aes(Date)) + geom_density(color = 'blue',fill = 'blue', alpha = 0.5,size = 0.5) + labs(title = '시간에 따른 사고발생건수 밀도 곡선 ' ) + theme(plot.title = element_text(hjust = 0.5,size = 20, face = 'bold')) + geom_vline(xintercept = as.numeric(data$Date[which(data$사고발생일  == '2020-01-20')]),color = 'red', linetype = 2,size = 1) + annotation_custom(grobTree(textGrob("코로나 첫 발생", x = 0, hjust = 0, y = 1.1, vjust = 1,gp = gpar(col = 'red', fontsize = 15)))) + theme_bw()
+    }
+    
+    else if(input$all == TRUE) {
+      
+    ggplot(data,aes(Date)) + geom_density(aes_string(fill = input$xvar,color = input$xvar),alpha = input$alpha) + labs(title = '시간에 따른 사고발생건수 밀도 곡선' ) + theme(plot.title = element_text(hjust = 0.5,size = 20, face = 'bold')) + geom_vline(xintercept = as.numeric(data$Date[which(data$사고발생일  == '2020-01-20')]),color = 'red', linetype = 2,size = 1) +theme_bw()
+      
+      
+    } })
+  
+  
+  
+ 
+  output$seasonplot <- renderPlot({
+    if(input$season == "봄"){
+      data <- data[month(data$Date) >= 3 & month(data$Date) <= 5, ]
+    }else if(input$season == "여름"){
+      data <- data[month(data$Date) >= 6 & month(data$Date) <= 8, ]
+    }else if(input$season == "가을" ){
+      data<- data[month(data$Date) >= 9 & month(data$Date) <= 11, ]
+    }else if(input$season == "겨울"){
+      data <- data[month(data$Date) == 12 | month(data$Date) <= 2, ]
+    }
+    
+    
+    data <- data[year(data$Date) == input$year, ]
+  
+    
+    ggplot(data,aes_string(x = input$xvar)) + geom_bar(aes(fill = 사고시간), position = 'dodge') +  theme_bw() + geom_text(stat = "count", aes(label = after_stat(count),group = 사고시간), position = position_dodge(width = 1),vjust = - 0.5,size = 3)  
+
+  }) 
+  
+output$hourplot <- renderPlot({
+  
+  data <- data[hour(data$Date) == input$hour,]
+  data <- data[year(data$Date) == input$year, ]
+  
+   ggplot(data, aes_string(x = input$xvar)) + geom_bar(aes_string(fill = input$xvar),width = 0.3) +
+     coord_flip() + theme(
+ axis.title.x=element_blank(), legend.title = element_text(size = 15, face = 'bold'),axis.title.y = element_blank(),
+  legend.text = element_text(size = 13),axis.text.y=element_text(size=14)) + scale_fill_brewer(palette="Blues") + stat_count(geom = "text", size = 4.5, aes(label = ..count..))
+})
+
+output$mosplot <- renderPlot({
+
+  data %>% mutate(vacation = ifelse(month(data$Date)==  7| month(data$Date)==  8 
+                   |month(data$Date)==  1 | month(data$Date)==  2, 'vacation', 'semester') ) %>% 
+    ggplot() + geom_mosaic(aes_string(x = product(vacation),fill = input$xvar)) + theme(axis.title.x = element_blank(),axis.title.y = element_blank(),
+  axis.text.x = element_text(size = 13),
+  axis.text.y = element_text(size = 13), legend.title = element_text(size = 18, face = 'bold'),
+  legend.text = element_text(size = 16)) + scale_fill_brewer(palette="Blues")
+  
+})
+
+output$vacplot <- renderPlot({
+  
+   data %>% filter(year(data$Date) == input$year) 
+   data$Vacation <-  ifelse(month(data$Date) %in% c(1,2,7,8), 'vacation', 'semester') 
+  ggplot(data,aes(factor(month(Date)),color = Vacation)) + geom_bar(position = 'fill', aes_string(fill = input$xvar)) +  scale_fill_brewer(palette="Blues") +  theme_bw() + theme(axis.title.x  = element_blank()) +  scale_color_manual(values=c('red','blue'))
+
+  
+})
+                        
+  
+}
+
+
+shinyApp(ui, server)
+
+```
+
+# 3. Shiny(지역별)
+
+```{r}
+# 지역별 시간대마다(년도별로 나눠서 하루 시간) 사고수 비교   
+
+ui <- fluidPage(
+  titlePanel("Display Plots"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("year",
+                  label = "year",
+                  choices = c("2019", 
+                              "2020", 
+                              "2021", 
+                              "2022", 
+                              "2023",
+                              "전체"),
+                  selected = "전체"),
+      selectInput("xvar", 
+                  label = "Choose a variable to display",
+                  choices = list("사고자성별",
+                                 "사고자학년",
+                                 "사고장소"),
+                  selected = "사고자성별"),
+      
+      selectInput("place", 
+                  label = "Choose a variable to display",
+                  choices = c("경기", "경남", "경북",
+                              "전북", "부산", "충북",
+                              "제주", "인천", "광주",
+                              "세종", "충남", "울산",
+                              "강원", "서울", "대전",
+                              "대구", "전남")),
+      
+      
+      submitButton(text = '실행') 
+    ),
+    
+    
+    mainPanel(
+      plotOutput("distPlot", width='80%', height='600px')
+    )
+  )
+)
+
+server <- function(input, output) {
+  output$distPlot <- renderPlot({
+    if(input$year == 2019){
+      data <- data[year(data$Date) == 2019, ]
+    }else if(input$year == 2020){
+      data <- data[year(data$Date) == 2020, ]
+    }else if(input$year == 2021){
+      data <- data[year(data$Date) == 2021, ]
+    }else if(input$year == 2022){
+      data <- data[year(data$Date) == 2022, ]
+    }else if(input$year == 2023){
+      data <- data[year(data$Date) == 2023, ]
+    }else{
+      data = data
+    }
+    ggplot(data[data$지역 == input$place, ], aes(사고발생일)) + geom_density(aes_string(color = input$xvar))
+    
+ })
+}
+
+shinyApp(ui, server)
+```
+
+```{r}
+#multiple checkbox
+
+ui <- fluidPage(
+  titlePanel("Display Plots"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("year",
+                  label = "year",
+                  choices = c("2019", 
+                              "2020", 
+                              "2021", 
+                              "2022", 
+                              "2023",
+                              "전체"),
+                  selected = "전체"),
+      selectInput("xvar", 
+                  label = "Choose a variable to display",
+                  choices = list("사고자성별",
+                                 "사고자학년",
+                                 "사고장소"),
+                  selected = "사고자성별"),
+      
+      checkboxGroupInput("place", 
+                  label = "Choose a variable to display",
+                  choices = c("경기", "경남", "경북",
+                              "전북", "부산", "충북",
+                              "제주", "인천", "광주",
+                              "세종", "충남", "울산",
+                              "강원", "서울", "대전",
+                              "대구", "전남")),
+      
+      
+      submitButton(text = '실행') 
+    ),
+    
+    
+    mainPanel(
+      plotOutput("distPlot", width='80%', height='600px')
+    )
+  )
+)
+
+server <- function(input, output) {
+  output$distPlot <- renderPlot({
+    if(input$year == 2019){
+      data <- data[year(data$Date) == 2019, ]
+    }else if(input$year == 2020){
+      data <- data[year(data$Date) == 2020, ]
+    }else if(input$year == 2021){
+      data <- data[year(data$Date) == 2021, ]
+    }else if(input$year == 2022){
+      data <- data[year(data$Date) == 2022, ]
+    }else if(input$year == 2023){
+      data <- data[year(data$Date) == 2023, ]
+    }else{
+      data = data
+    }
+    ggplot(data[c(data$지역 == input$place), ], aes(사고발생일)) + geom_density(aes_string(color = input$xvar))
+    
+ })
+}
+
+shinyApp(ui, server)
+```
+
+
+# 4. 지도 시각화
+
+```{r}
+n = data %>% 
+  group_by(지역) %>% 
+  summarise(지역별사건수=n())
+
+
+
+# 한국 지도 시각화 
+devtools::install_github("cardiomoon/Kormaps2014")
+devtools::install_github("cardiomoon/moonBook2")
+library(kormaps2014)
+library(moonBook2)
+
+
+korpop1 = merge(korpop1, areacode, by = "code")
+
+korpop1 = rename(korpop1, "지역"="name1")
+
+korpop1 = merge(korpop1, n, by = "지역")
+
+ggplot(korpop1,aes(map_id=code,fill=지역별사건수))+
+        geom_map(map=kormap1,colour="black",size=0.1)+
+        expand_limits(x=kormap1$long,y=kormap1$lat)+
+        scale_fill_gradientn(colours=c('white','skyblue','navy'))+
+        coord_map()
+        
+# 병원 데이터
+
+hos <- read_excel("C:/Users/yujin/Desktop/1.병원정보서비스.xlsx")
+# data와 시도코드 및 시도코드명 통일
+hos$시도코드 = substr(hos$시도코드, 1, 2)
+hos$시도코드명 = substr(hos$시도코드명, 1, 2)
+
+hos = rename(hos, "좌표_X" = "좌표(X)")
+hos = rename(hos, "좌표_Y" = "좌표(Y)")
+
+# 병원 위치 데이터 추가
+
+hos_1 = hos[,c(2,6,29,30) ]
+
+
+hos_1 = rename(hos_1, "지역" = "시도코드명")
+
+
+hos_1_n = hos_1 %>% 
+  group_by(지역) %>% 
+  summarise(병원수=n())
+
+korpop1 = merge(korpop1, hos_1_n, by = "지역")
+
+ggplot() + geom_point(hos_1, mapping=aes(x= 좌표_X,y=좌표_Y), size=0.5)
+
+# 행정구역별 사고 형태 (일반, 치과, 보건) -> 전국에 사고들을 처리할 수 있는 만큼 병원이 활성화도ㅣ어있는지 (지도) - 사건 수 대비 병원수 비교 (색깔 비교하기 )
+
+ggplot(korpop1,aes(map_id=code,fill=병원수))+
+        geom_map(map=kormap1,colour="black",size=0.1)+
+        expand_limits(x=kormap1$long,y=kormap1$lat)+
+        scale_fill_gradientn(colours=c('white','skyblue','navy'))+
+        coord_map()
+
+# 병원 별 labeling
+
+hos = hos %>%
+  mutate(
+    목적 = case_when(
+      종별코드명 == "상급종합" | 종별코드명 =="종합병원"| 종별코드명 =="병원"| 종별코드명 == "의원"  ~ "일반",
+      종별코드명 == "치과병원" | 종별코드명 == "치과의원" ~ "치과",
+      종별코드명 == "보건소" | 종별코드명 == "보건지소" | 종별코드명 == "보건진료소" | 종별코드명 == "보건의료원" ~ "보건소",
+      TRUE ~ "기타"
+  )
+)
+
+
+hos = hos %>% 
+  filter(목적 != "기타")%>%
+  filter(!is.na(좌표_X) | !is.na(좌표_Y) )
+
+
+ggplot() + geom_point(hos, mapping=aes(x= 좌표_X,y=좌표_Y, colour = 목적), size=0.6, alpha=0.4)
+
+
+ui <- fluidPage(
+  titlePanel("Display Plots"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("purpose", 
+                  label = "Choose a variable to display",
+                  choices = list("일반",
+                                 "보건소",
+                                 "치과"),
+                  selected = "일반"),
+      
+      submitButton(text = '실행') 
+    ),
+    mainPanel(
+      plotOutput("distPlot", width='80%', height='600px')
+    )
+  )
+)
+
+server <- function(input, output) {
+  output$distPlot <- renderPlot({
+    if(input$purpose == "일반"){
+      data = hos %>% filter(목적 == "일반")
+    }else if(input$purpose == "보건소"){
+      data = hos %>% filter(목적 == "보건소")
+    }else if(input$purpose == "치과"){
+      data = hos %>% filter(목적 == "치과")
+    }
+    
+    g = ggplot(data) + geom_point(mapping=aes(x=좌표_X,y=좌표_Y), size=0.6, alpha=0.4)
+    g + theme_bw(base_size = 20) +
+          theme(legend.position = "bottom")
+ })
+}
+
+shinyApp(ui, server)
+
+# 행정구역별 사고 장소 비교 - 장소 보안 아이디어 학교 안전시설 보수 여부 판단 - 지도 
+
+data %>% 
+  group_by(사고장소) %>% 
+  summarise(장소별사건수=n())
+
+
+place1_n = data %>% 
+  filter(사고장소 == "교실") %>%
+  group_by(지역) %>%
+  summarise(교실_사건수=n())
+
+korpop1_f = merge(korpop1, place1_n, by = "지역")  
+
+
+place2_n = data %>% 
+  filter(사고장소 == "교외") %>%
+  group_by(지역) %>%
+  summarise(교외_사건수=n())
+
+korpop1_f = merge(korpop1_f, place2_n, by = "지역")  
+
+place3_n = data %>% 
+  filter(사고장소 == "교외활동") %>%
+  group_by(지역) %>%
+  summarise(교외활동_사건수=n())
+
+korpop1_f = merge(korpop1_f, place3_n, by = "지역")  
+
+place4_n = data %>% 
+  filter(사고장소 == "부속시설") %>%
+  group_by(지역) %>%
+  summarise(부속시설_사건수=n())
+
+korpop1_f = merge(korpop1_f, place4_n, by = "지역")  
+
+place5_n = data %>% 
+  filter(사고장소 == "운동장") %>%
+  group_by(지역) %>%
+  summarise(운동장_사건수=n())
+
+korpop1_f = merge(korpop1_f, place5_n, by = "지역")  
+
+place6_n = data %>% 
+  filter(사고장소 == "통로") %>%
+  group_by(지역) %>%
+  summarise(통로_사건수=n())
+
+korpop1_f = merge(korpop1_f, place6_n, by = "지역")  
+
+#fill 바꿔주기기
+
+
+
+ggplot(korpop1_f,aes(map_id=code,fill=교실_사건수))+
+        geom_map(map=kormap1,colour="black",size=0.1)+
+        expand_limits(x=kormap1$long,y=kormap1$lat)+
+        scale_fill_gradientn(colours=c('white','skyblue','navy'))+
+        coord_map()
+
+ggplot(korpop1_f,aes(map_id=code,fill=교외_사건수))+
+        geom_map(map=kormap1,colour="black",size=0.1)+
+        expand_limits(x=kormap1$long,y=kormap1$lat)+
+        scale_fill_gradientn(colours=c('white','skyblue','navy'))+
+        coord_map()
+
+ggplot(korpop1_f,aes(map_id=code,fill=교외활동_사건수))+
+        geom_map(map=kormap1,colour="black",size=0.1)+
+        expand_limits(x=kormap1$long,y=kormap1$lat)+
+        scale_fill_gradientn(colours=c('white','skyblue','navy'))+
+        coord_map()
+
+ggplot(korpop1_f,aes(map_id=code,fill=부속시설_사건수))+
+        geom_map(map=kormap1,colour="black",size=0.1)+
+        expand_limits(x=kormap1$long,y=kormap1$lat)+
+        scale_fill_gradientn(colours=c('white','skyblue','navy'))+
+        coord_map()
+
+ggplot(korpop1_f,aes(map_id=code,fill=운동장_사건수))+
+        geom_map(map=kormap1,colour="black",size=0.1)+
+        expand_limits(x=kormap1$long,y=kormap1$lat)+
+        scale_fill_gradientn(colours=c('white','skyblue','navy'))+
+        coord_map()
+
+ggplot(korpop1_f,aes(map_id=code,fill=통로_사건수))+
+        geom_map(map=kormap1,colour="black",size=0.1)+
+        expand_limits(x=kormap1$long,y=kormap1$lat)+
+        scale_fill_gradientn(colours=c('white','skyblue','navy'))+
+        coord_map()
+
+```
+
+
+
+
+
+
