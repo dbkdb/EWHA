@@ -1,6 +1,6 @@
 
 DATA PEPI;
-    INFILE 'D:\���п�\2024-2\�ӻ�����ڷ�м�\PROJECT\DATA\�����/PEPI_data.csv' 
+    INFILE 'D:\대학원\2024-2\임상시험자료분석\PROJECT\DATA\유방암/PEPI_data.csv' 
            DELIMITER = ',' FIRSTOBS = 2;
     INPUT treatment $ RESP  count;
 RUN;
