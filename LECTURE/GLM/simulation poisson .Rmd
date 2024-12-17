@@ -1,0 +1,341 @@
+---
+title: "Untitled"
+author: "248STG01 김다빈"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+p = 400
+n = 10
+t = 40
+N = 400
+sigma_b = 0.4
+beta_true <- c(-4,-6,10,rep(0,p-3))
+
+nsim <- 100
+lambdas <- seq(20,21,by = 0.1)
+cv_df <- matrix(NA, nrow = length(lambdas), ncol = 7)
+MSE_tr <- matrix(NA, nrow = nsim, ncol = 6)
+colnames(MSE_tr) <- c('S(B)', 'TP','sigma_b', 'beta1','beta2','beta3')
+
+result <- matrix(NA, nrow = 1, ncol = 12)
+colnames(result) <-c('S(B)', 'S(B)_se', 'TP','TP_se','sigma_b','sigma_b_se',
+                     'beta1','beta1_se', 'beta2','beta2_se', 'beta3','beta3_se')
+for(i in 1:nsim){
+  set.seed(i+100)
+  
+  ####데이터바꾸면서 돌리기####
+  train <- generate_data(n,t,p,sigma_b,beta_true)
+  
+  for(j in 1:length(lambdas)){
+    X_vars <- paste("X", 1:p, sep = "")
+    formula <- as.formula(paste("y ~", paste(X_vars, collapse = " + ")))
+    model <- glmmLasso(formula, rnd = list(group = ~ 1), family=poisson(),
+                       lambda= lambdas[j] , data = train)
+    
+    pred_beta <- summary(model)$coefficients[2:4,1] #beta1,beta2,beta3
+    cv_df[j,1] <- sum((pred_beta - beta_true[1:3])^2) #S(B)
+    cv_df[j,2] <- sum(which(model$coefficients != 0) %in% c(2,3,4)) #TP
+    cv_df[j,3] <- summary(model)$StdDev #sigma_b estimation
+    cv_df[j,4:6] <- pred_beta
+    
+    
+  }
+  
+  MSE_tr[i,] <- c(cv_df[which.min(cv_df[,1]),1], #S(B)
+                  cv_df[which.min(cv_df[,1]),2], # TP
+                  cv_df[which.min(cv_df[,1]),3], # sigma_b estimation
+                  cv_df[which.min(cv_df[,1]),4:6] )# pred _beta  
+  
+  
+}
+
+
+result[1,] <- c(mean(MSE_tr[,1]), sd(MSE_tr[,1]),
+                mean(MSE_tr[,2]), sd(MSE_tr[,2]),
+                mean(MSE_tr[,3]), sd(MSE_tr[,3]),
+                mean(MSE_tr[,4]), sd(MSE_tr[,4]),
+                mean(MSE_tr[,5]), sd(MSE_tr[,5]),
+                mean(MSE_tr[,6]), sd(MSE_tr[,6]))
+
+print(result)
+
+```
+
+
+```{r}
+p = 400
+n = 10
+t = 40
+N = 400
+sigma_b = 1
+beta_true <- c(-4,-6,10,rep(0,p-3))
+
+nsim <- 100
+lambdas <- seq(20,21,by = 0.1)
+cv_df <- matrix(NA, nrow = length(lambdas), ncol = 7)
+MSE_tr <- matrix(NA, nrow = nsim, ncol = 6)
+colnames(MSE_tr) <- c('S(B)', 'TP','sigma_b', 'beta1','beta2','beta3')
+
+result <- matrix(NA, nrow = 1, ncol = 12)
+colnames(result) <-c('S(B)', 'S(B)_se', 'TP','TP_se','sigma_b','sigma_b_se',
+                     'beta1','beta1_se', 'beta2','beta2_se', 'beta3','beta3_se')
+for(i in 1:nsim){
+  set.seed(i+100)
+  
+  ####데이터바꾸면서 돌리기####
+  train <- generate_data(n,t,p,sigma_b,beta_true)
+  
+  for(j in 1:length(lambdas)){
+    X_vars <- paste("X", 1:p, sep = "")
+    formula <- as.formula(paste("y ~", paste(X_vars, collapse = " + ")))
+    model <- glmmLasso(formula, rnd = list(group = ~ 1), family=poisson(),
+                       lambda= lambdas[j] , data = train)
+    
+    pred_beta <- summary(model)$coefficients[2:4,1] #beta1,beta2,beta3
+    cv_df[j,1] <- sum((pred_beta - beta_true[1:3])^2) #S(B)
+    cv_df[j,2] <- sum(which(model$coefficients != 0) %in% c(2,3,4)) #TP
+    cv_df[j,3] <- summary(model)$StdDev #sigma_b estimation
+    cv_df[j,4:6] <- pred_beta
+    
+    
+  }
+  
+  MSE_tr[i,] <- c(cv_df[which.min(cv_df[,1]),1], #S(B)
+                  cv_df[which.min(cv_df[,1]),2], # TP
+                  cv_df[which.min(cv_df[,1]),3], # sigma_b estimation
+                  cv_df[which.min(cv_df[,1]),4:6] )# pred _beta  
+  
+  
+}
+
+
+result[1,] <- c(mean(MSE_tr[,1]), sd(MSE_tr[,1]),
+                mean(MSE_tr[,2]), sd(MSE_tr[,2]),
+                mean(MSE_tr[,3]), sd(MSE_tr[,3]),
+                mean(MSE_tr[,4]), sd(MSE_tr[,4]),
+                mean(MSE_tr[,5]), sd(MSE_tr[,5]),
+                mean(MSE_tr[,6]), sd(MSE_tr[,6]))
+
+print(result)
+
+```
+
+
+
+```{r}
+p = 500
+n = 40
+t = 10
+N = 400
+sigma_b = 1
+beta_true <- c(-4,-6,10,rep(0,p-3))
+
+nsim <- 100
+lambdas <- seq(140,150,by = 1)
+cv_df <- matrix(NA, nrow = length(lambdas), ncol = 7)
+MSE_tr <- matrix(NA, nrow = nsim, ncol = 6)
+colnames(MSE_tr) <- c('S(B)', 'TP','sigma_b', 'beta1','beta2','beta3')
+
+result <- matrix(NA, nrow = 1, ncol = 12)
+colnames(result) <-c('S(B)', 'S(B)_se', 'TP','TP_se','sigma_b','sigma_b_se',
+                     'beta1','beta1_se', 'beta2','beta2_se', 'beta3','beta3_se')
+for(i in 1:nsim){
+  set.seed(i+100)
+  
+  ####데이터바꾸면서 돌리기####
+  train <- generate_data(n,t,p,sigma_b,beta_true)
+  
+  for(j in 1:length(lambdas)){
+    X_vars <- paste("X", 1:p, sep = "")
+    formula <- as.formula(paste("y ~", paste(X_vars, collapse = " + ")))
+    model <- glmmLasso(formula, rnd = list(group = ~ 1), family=poisson(),
+                       lambda= lambdas[j] , data = train)
+    
+    pred_beta <- summary(model)$coefficients[2:4,1] #beta1,beta2,beta3
+    cv_df[j,1] <- sum((pred_beta - beta_true[1:3])^2) #S(B)
+    cv_df[j,2] <- sum(which(model$coefficients != 0) %in% c(2,3,4)) #TP
+    cv_df[j,3] <- summary(model)$StdDev #sigma_b estimation
+    cv_df[j,4:6] <- pred_beta
+    
+    
+  }
+  
+  MSE_tr[i,] <- c(cv_df[which.min(cv_df[,1]),1], #S(B)
+                  cv_df[which.min(cv_df[,1]),2], # TP
+                  cv_df[which.min(cv_df[,1]),3], # sigma_b estimation
+                  cv_df[which.min(cv_df[,1]),4:6] )# pred _beta  
+  
+  
+}
+
+
+result[1,] <- c(mean(MSE_tr[,1]), sd(MSE_tr[,1]),
+                mean(MSE_tr[,2]), sd(MSE_tr[,2]),
+                mean(MSE_tr[,3]), sd(MSE_tr[,3]),
+                mean(MSE_tr[,4]), sd(MSE_tr[,4]),
+                mean(MSE_tr[,5]), sd(MSE_tr[,5]),
+                mean(MSE_tr[,6]), sd(MSE_tr[,6]))
+
+print(result)
+
+
+mean(sort(MSE_tr[,1])[1:20])
+mean(sort(MSE_tr[,2])[1:20])
+mean(sort(MSE_tr[,3])[1:20])
+mean(sort(MSE_tr[,4])[1:20])
+mean(sort(MSE_tr[,5])[1:20])
+mean(sort(MSE_tr[,6])[1:20])
+
+sd(sort(MSE_tr[,1])[1:20])
+sd(sort(MSE_tr[,2])[1:20])
+sd(sort(MSE_tr[,3])[1:20])
+sd(sort(MSE_tr[,4])[1:20])
+sd(sort(MSE_tr[,5])[1:20])
+sd(sort(MSE_tr[,6])[1:20])
+```
+```{r}
+p = 500
+n = 40
+t = 10
+N = 400
+sigma_b = 0.4
+beta_true <- c(-4,-6,10,rep(0,p-3))
+
+nsim <- 100
+lambdas <- seq(100,105,by = 1)
+cv_df <- matrix(NA, nrow = length(lambdas), ncol = 7)
+MSE_tr <- matrix(NA, nrow = nsim, ncol = 6)
+colnames(MSE_tr) <- c('S(B)', 'TP','sigma_b', 'beta1','beta2','beta3')
+
+result <- matrix(NA, nrow = 1, ncol = 12)
+colnames(result) <-c('S(B)', 'S(B)_se', 'TP','TP_se','sigma_b','sigma_b_se',
+                     'beta1','beta1_se', 'beta2','beta2_se', 'beta3','beta3_se')
+for(i in 1:nsim){
+  set.seed(i+100)
+  
+  ####데이터바꾸면서 돌리기####
+  train <- generate_data(n,t,p,sigma_b,beta_true)
+  
+  for(j in 1:length(lambdas)){
+    X_vars <- paste("X", 1:p, sep = "")
+    formula <- as.formula(paste("y ~", paste(X_vars, collapse = " + ")))
+    model <- glmmLasso(formula, rnd = list(group = ~ 1), family=poisson(),
+                       lambda= lambdas[j] , data = train)
+    
+    pred_beta <- summary(model)$coefficients[2:4,1] #beta1,beta2,beta3
+    cv_df[j,1] <- sum((pred_beta - beta_true[1:3])^2) #S(B)
+    cv_df[j,2] <- sum(which(model$coefficients != 0) %in% c(2,3,4)) #TP
+    cv_df[j,3] <- summary(model)$StdDev #sigma_b estimation
+    cv_df[j,4:6] <- pred_beta
+    
+    
+  }
+  
+  MSE_tr[i,] <- c(cv_df[which.min(cv_df[,1]),1], #S(B)
+                  cv_df[which.min(cv_df[,1]),2], # TP
+                  cv_df[which.min(cv_df[,1]),3], # sigma_b estimation
+                  cv_df[which.min(cv_df[,1]),4:6] )# pred _beta  
+  
+  
+}
+
+
+result[1,] <- c(mean(MSE_tr[,1]), sd(MSE_tr[,1]),
+                mean(MSE_tr[,2]), sd(MSE_tr[,2]),
+                mean(MSE_tr[,3]), sd(MSE_tr[,3]),
+                mean(MSE_tr[,4]), sd(MSE_tr[,4]),
+                mean(MSE_tr[,5]), sd(MSE_tr[,5]),
+                mean(MSE_tr[,6]), sd(MSE_tr[,6]))
+
+print(result)
+
+
+mean(sort(MSE_tr[,1])[1:20])
+mean(sort(MSE_tr[,2])[1:20])
+mean(sort(MSE_tr[,3])[1:20])
+mean(sort(MSE_tr[,4])[1:20])
+mean(sort(MSE_tr[,5])[1:20])
+mean(sort(MSE_tr[,6])[1:20])
+
+sd(sort(MSE_tr[,1])[1:20])
+sd(sort(MSE_tr[,2])[1:20])
+sd(sort(MSE_tr[,3])[1:20])
+sd(sort(MSE_tr[,4])[1:20])
+sd(sort(MSE_tr[,5])[1:20])
+sd(sort(MSE_tr[,6])[1:20])
+```
+
+
+```{r}
+p = 500
+n = 40
+t = 10
+N = 400
+sigma_b = 0.4
+beta_true <- c(-4,-6,10,rep(0,p-3))
+
+nsim <- 100
+lambdas <- seq(100,105,by = 1)
+cv_df <- matrix(NA, nrow = length(lambdas), ncol = 7)
+MSE_tr <- matrix(NA, nrow = nsim, ncol = 6)
+colnames(MSE_tr) <- c('S(B)', 'TP','sigma_b', 'beta1','beta2','beta3')
+
+result <- matrix(NA, nrow = 1, ncol = 12)
+colnames(result) <-c('S(B)', 'S(B)_se', 'TP','TP_se','sigma_b','sigma_b_se',
+                     'beta1','beta1_se', 'beta2','beta2_se', 'beta3','beta3_se')
+for(i in 1:nsim){
+  set.seed(i+100)
+  
+  ####데이터바꾸면서 돌리기####
+  train <- generate_data(n,t,p,sigma_b,beta_true)
+  
+  for(j in 1:length(lambdas)){
+    X_vars <- paste("X", 1:p, sep = "")
+    formula <- as.formula(paste("y ~", paste(X_vars, collapse = " + ")))
+    model <- glmmLasso(formula, rnd = list(group = ~ 1), family=poisson(),
+                       lambda= lambdas[j] , data = train)
+    
+    pred_beta <- summary(model)$coefficients[2:4,1] #beta1,beta2,beta3
+    cv_df[j,1] <- sum((pred_beta - beta_true[1:3])^2) #S(B)
+    cv_df[j,2] <- sum(which(model$coefficients != 0) %in% c(2,3,4)) #TP
+    cv_df[j,3] <- summary(model)$StdDev #sigma_b estimation
+    cv_df[j,4:6] <- pred_beta
+    
+    
+  }
+  
+  MSE_tr[i,] <- c(cv_df[which.min(cv_df[,1]),1], #S(B)
+                  cv_df[which.min(cv_df[,1]),2], # TP
+                  cv_df[which.min(cv_df[,1]),3], # sigma_b estimation
+                  cv_df[which.min(cv_df[,1]),4:6] )# pred _beta  
+  
+  
+}
+
+
+result[1,] <- c(mean(MSE_tr[,1]), sd(MSE_tr[,1]),
+                mean(MSE_tr[,2]), sd(MSE_tr[,2]),
+                mean(MSE_tr[,3]), sd(MSE_tr[,3]),
+                mean(MSE_tr[,4]), sd(MSE_tr[,4]),
+                mean(MSE_tr[,5]), sd(MSE_tr[,5]),
+                mean(MSE_tr[,6]), sd(MSE_tr[,6]))
+
+print(result)
+
+
+mean(sort(MSE_tr[,1])[1:20])
+mean(sort(MSE_tr[,2])[1:20])
+mean(sort(MSE_tr[,3])[1:20])
+mean(sort(MSE_tr[,4])[1:20])
+mean(sort(MSE_tr[,5])[1:20])
+mean(sort(MSE_tr[,6])[1:20])
+
+sd(sort(MSE_tr[,1])[1:20])
+sd(sort(MSE_tr[,2])[1:20])
+sd(sort(MSE_tr[,3])[1:20])
+sd(sort(MSE_tr[,4])[1:20])
+sd(sort(MSE_tr[,5])[1:20])
+sd(sort(MSE_tr[,6])[1:20])
+```
