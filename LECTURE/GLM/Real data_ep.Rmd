@@ -1,0 +1,211 @@
+---
+title: "Real Data"
+author: "248STG01 김다빈"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Real Data : epilepsy
+
+# data frame with 236 observations of the following 7 variables.
+# y :The seizure counts during 2-week periods before each of four visits #     to the clinic.
+# T : Treatment(0=new drug, 1=placebo).
+# B : The average number of epileptic seizures 
+#    in the 8-week period preceding the trial 
+# A  : The logarithm of age (in years) of each patient. 
+# V :  Linear trend coded (-3,-1, 1, 3)/10 for four visits of each patient
+# patient : Patient number for 59 epileptics.
+# id : Observation number for 236 observations
+
+
+
+
+# 데이터 불러오기
+
+```{r}
+library(dhglm)
+data("epilepsy")
+epilepsy
+
+
+# Age
+#exp(epilepsy$A)
+
+#Base
+#exp(epilepsy$B)*4
+
+N = 236
+t = 59
+n = 4
+p = 4000 #including 3994 noise covariates
+
+```
+
+
+# noise predictors 추가 및 standardized
+
+
+```{r}
+set.seed(12345)
+
+#noise covariates generate
+U <-  matrix(runif(N*3994,min = -1, max = 1),nrow = N)
+colnames(U) <- paste0("U",1:3994)
+```
+
+
+```{r}
+data <- data.frame(epilepsy, U)
+head(data)
+dim(data)
+
+#id columns drop
+data <- data[,-7]
+
+#TRT 칼럼명 변경 
+colnames(data)[2] <- 'trt'
+
+
+data$patient <- as.factor(data$patient)  # 범주형으로 변환
+data$trt <- as.factor(data$trt)
+
+```
+
+
+# V4 생성 
+
+```{r}
+
+data['V4'] <- 0
+for(i in seq(1,59)){
+  if( data[i*4,'y'] == 0) {
+      data$V4[(i*4-3):(i*4)] <- 0 
+      } 
+  
+  else {data$V4[(i*4-3):(i*4)] <- 1}
+}
+
+```
+
+
+```{r}
+# Standardized
+#data <- data[,-5]
+std_col <- c(1,2,6) 
+data[,-std_col] <- as.data.frame(scale(data[,-std_col]))
+```
+
+
+```{r}
+library(glmmLasso)
+
+
+U_vars <- paste("U", 1:3394, sep = "")
+U_vars <- paste(U_vars,collapse = " + ")
+X_vars <- c("+ B" ,"A","B:A", "V","trt")
+X_vars <- paste(X_vars,collapse = " + ")
+form <- as.formula(paste("y ~ ",paste(U_vars,X_vars)))
+
+# CV 
+library(glmmLasso)
+random_matrix <- model.matrix(~ patient - 1, data = data)
+model <- glmmLasso(form, rnd = random_matrix, family = poisson(), lambda = 600, data = data)
+model$coefficients[3390:3400]
+model$bic  #300 이상이어야 돌아감
+model$StdDev
+
+sum(model$coefficients != 0)
+```
+
+
+#find best lambda
+
+```{r}
+lambdas <- seq(600,1750,by = 10)
+result <- matrix(NA, nrow = length(lambdas), ncol = 2)
+colnames(result) <- c('lambda','BIC')
+
+for (i in 1:length(lambdas)) {
+  random_matrix <- model.matrix(~ patient - 1, data = data)
+  model <- glmmLasso(form, rnd = random_matrix, family =       poisson(), lambda = lambdas[i], data = data)
+  result[i,] <- c(lambdas[i], model$bic)
+}
+
+print(result[which.min(result[,2]),])
+```
+
+```{r}
+
+
+data['id'] <- epilepsy['id']
+U_vars <- paste("U", 1:3394, sep = "")
+U_vars <- paste(U_vars,collapse = " + ")
+X_vars <- c("+ B" ,"A","B:A", "V","trt")
+X_vars <- paste(X_vars,collapse = " + ")
+form <- as.formula(paste("y ~ ",paste(U_vars,X_vars)))
+random_matrix <- model.matrix(~ patient + id - 1, data = data)
+model_test <- glmmLasso(form, rnd = random_matrix,
+                       family = poisson(),
+                       lambda = 1650,
+                       data = data)
+```
+
+
+```{r}
+#final model
+
+
+
+
+model_fin <- glmmLasso(form, rnd = random_matrix,
+                       family = poisson(),
+                       lambda = 1650,
+                       data = data)
+model_fin$coefficients[3390:3400]
+model_fin$bic  #300 이상이어야 돌아감
+model_fin$StdDev
+
+sum(model_fin$coefficients != 0)
+```
+
+
+
+
+# lambda plot
+
+```{r}
+
+library(ggplot2)
+ggplot(aes(lambda, BIC), data = result) + 
+  geom_line()
+plot(result$lambda,result$BIC, type ='l')
+```
+
+
+
+```{r}
+
+df <- epilepsy
+epilepsy$patient <- as.factor(epilepsy$patient)
+random_matrix <- model.matrix(~ patient - 1, data = epilepsy)
+model <- glmmLasso(fix = y~B+A,rnd =random_matrix, family = poisson(link = log), lambda = 2, data= epilepsy)
+
+
+```
+
+
+# glmm
+
+```{r}
+
+library(lme4)
+model <- glmer(y ~ B + A + B:A + V + trt + (1 | patient), family = poisson(link = log), data = data)
+
+summary(model)
+```
+
+
+
+
+
+
