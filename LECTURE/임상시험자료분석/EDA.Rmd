@@ -1,0 +1,118 @@
+---
+title: "Untitled"
+author: "248STG01 김다빈"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Data load
+
+```{r}
+data <- read.csv('D:/대학원/2024-2/임상시험자료분석/PROJECT/DATA/유방암/NCT00265759.csv')
+```
+
+# 환자 수 확인
+
+```{r}
+nrow(data)
+```
+
+# 투약한 treatment 갯수 확인
+
+```{r}
+library(ggplot2)
+
+ggplot(data= data) + geom_bar(aes(randf),fill = 'darkgreen')+
+  theme_minimal() 
+
+table(data$randf)
+```
+
+
+# Sxperf
+
+```{r}
+ggplot(data= data) + geom_bar(aes(sxperf),fill = 'darkgreen') +
+  theme_minimal() 
+
+table(data$sxperf)
+```
+
+#sxdone
+
+```{r}
+ggplot(data= data) + geom_bar(aes(sxdone),fill = 'darkgreen')+ theme_minimal()
+table(data$sxdone)  
+```
+#ctstagef
+
+```{r}
+ggplot(data= data) + geom_bar(aes(ctstagef),fill = 'darkgreen')+ theme_minimal()
+table(data$ctstagef)  
+```
+#cnstagef
+
+```{r}
+ggplot(data= data) + geom_bar(aes(cnstagef),fill = 'darkgreen')+ theme_minimal()
+table(data$cnstagef)  
+```
+#BXGRD
+
+```{r}
+ggplot(data= data) + geom_bar(aes(bxgrd),fill = 'darkgreen')+ theme_minimal()
+table(data$bxgrd)  
+```
+
+#PESTAT
+
+```{r}
+ggplot(data= data) + geom_bar(aes(pe_stat),fill = 'darkgreen')+ theme_minimal()
+table(data$pe_stat)  
+```
+
+
+
+
+
+
+
+
+
+# 종양의 진행정도
+
+```{r}
+ggplot(data= data) + geom_bar(aes(ctstagef),fill = 'darkgreen')+
+  theme_minimal() 
+table(data$ctstagef)
+```
+
+
+```{r}
+ggplot(data= data) + geom_bar(aes(cnstagef,fill = cnstagef)) +
+  theme_minimal() 
+table(data$cnstagef)
+```
+
+
+
+# PREALLRE
+
+
+
+```{r}
+pre <- ggplot(data_new) +geom_bar( aes(PREALLRE),fill = 'darkgreen') +
+  theme_minimal() + ylim(0, 100)
+post <- ggplot(data_new) +geom_bar(aes(SXALLRED),fill = 'darkgreen') +
+  theme_minimal() + ylim(0, 100)
+
+pre/post
+```
+
+
+
+
+
+
+
+
+
