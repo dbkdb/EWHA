@@ -1,0 +1,360 @@
+---
+title: "분석"
+author: "248STG01 김다빈"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Data load
+
+```{r}
+data <- read.csv('D:/대학원/2024-2/임상시험자료분석/PROJECT/DATA/유방암/NCT00265759.csv')
+
+```
+
+
+# 연구 치료전에 철회한 환자 제외
+
+```{r}
+#cancel = 3 제거 
+table(data$prob)
+
+index = which(data$prob == 'cancel')
+
+data_new <- data[-index,] 
+
+dim(data_new)
+
+
+#NA가 많고 분석에 사용되지 않은 열 제거
+
+library(dplyr)
+library(tidyverse)
+data_new <- data_new %>% dplyr::select(-INELGTXT, -sxgrp, -prob)
+
+data_new <- data_new[-which(apply(is.na(data_new),1,sum) >= 1),]  
+```
+
+#Ki67
+
+```{r}
+ggplot(data) + geom_point(aes(pki67,ski67)) + theme_bw()
+```
+```{r}
+
+#install.packages("patchwork")
+library(ggplot2)
+library(patchwork)
+
+a <- ggplot(data) + geom_boxplot(aes(pki67))  + theme_bw() 
+b <- ggplot(data) + geom_boxplot(aes(ski67)) + theme_bw()
+
+a/b
+```
+
+
+```{r}
+summary(data$pki67)
+```
+
+
+```{r}
+summary(data$ski67)
+```
+
+# 환자 특성에 따른 차이가 있는지 여부 확인
+
+```{r}
+library(dplyr)
+
+
+data_new['response'] = ifelse(data_new$pe_stat == 'CR' | data_new$pe_stat == 'PR', 1, 0)
+
+
+model = glm(response ~  bxgrd + cnstagef + ctstagef +
+               sxdone, data = data_new,
+            family = binomial )
+
+summary(model)
+```
+
+```{r}
+table(data_new[(data_new$surgstatf == 'CANDIDATE FOR LUMPECTOMY') & data_new$bcs == 0 , 'randf'])
+table(data_new[(data_new$surgstatf == 'INOPERABLEY') & data_new$bcs == 1 , 'randf'])
+```
+
+---
+# wilcoxon signed rank test
+
+```{r}
+#치료제별 데이터 분리
+
+E <- data_new[data_new$randf== '(ARM 1) EXEMESTANE' ,   ]
+L <- data_new[data_new$randf== '(ARM 2) LETROZOLE' ,   ]
+A <- data_new[data_new$randf== '(ARM 3) ANASTROZOLE' ,   ]
+
+
+write.csv(E,'D:/대학원/2024-2/임상시험자료분석/PROJECT/DATA/유방암/E.csv')
+write.csv(A,'D:/대학원/2024-2/임상시험자료분석/PROJECT/DATA/유방암/A.csv')
+write.csv(L,'D:/대학원/2024-2/임상시험자료분석/PROJECT/DATA/유방암/L.csv')
+write.csv(data_new,'D:/대학원/2024-2/임상시험자료분석/PROJECT/DATA/유방암/data_new.csv')
+
+ 
+```
+
+
+#kruskal test
+
+```{r}
+#정규성 검정
+shapiro.test(data_new$pki67)
+shapiro.test(data_new$ski67)
+```
+
+
+```{r}
+kruskal.test(pki67 ~ randf, data = data_new)
+kruskal.test(ski67 ~ randf, data = data_new)
+```
+
+
+# Dunnett test
+
+```{r}
+data_new$randf <- as.factor(data_new$randf)
+trttable = table(data_new$randf)
+
+amod <- aov(ski67 ~ randf, data = data_new )
+K = contrMat(trttable, type = 'Dunnett', base = 1)
+
+dunnetresult = glht(amod, linfct = mcp(randf = K))
+summary(dunnetresult)
+```
+
+
+
+
+
+```{r}
+library(agricolae)
+library(multcomp)
+
+amod <- aov(ski67 ~ randf, data = data_new )
+
+summary(amod)
+
+out = duncan.test(amod, trt = "randf", console = TRUE)
+
+```
+
+# Tukey HSD
+
+```{r}
+out = HSD.test(amod, trt = "randf", console = TRUE)
+
+```
+
+
+```{r}
+TukeyHSD(amod)
+```
+
+
+-----------
+
+# PEPI SCORE
+
+```{r}
+#카이 제곱 검정
+
+PEPI_data <- read.csv("D:/대학원/2024-2/임상시험자료분석/PROJECT/DATA/유방암/PEPI_data.csv")
+
+PEPI_table <- xtabs(count ~ treatment + RESP, data = PEPI_data)
+print(PEPI_table)
+
+# 카이제곱 검정 수행
+chi_result <- chisq.test(PEPI_table)
+
+print(chi_result)
+
+```
+
+
+
+
+----
+
+# Luminal 간 Ki67 비교
+
+```{r}
+data_luminal <- data_new[which(data_new$prehtype %in% c('LumB','LumA') ),]
+anova_result <- aov(ski67 ~ prehtype, data = data_luminal )
+
+#ANOVA
+print(summary(anova_result))
+kruskal.test(ski67 ~ prehtype, data = data_luminal)
+
+#Dunnett
+data_luminal$prehtype <- as.factor(data_luminal$prehtype)
+pretable = table(data_luminal$prehtype)
+anova_result <- aov(ski67 ~ prehtype, data = data_luminal )
+K = contrMat(pretable, type = 'Dunnett', base = 1)
+
+dunnetresult = glht(anova_result, linfct = mcp(prehtype = K))
+summary(dunnetresult)
+
+```
+
+```{r}
+library(ggplot2)
+ggplot(data_luminal, aes(x = prehtype, y = ski67 , fill = prehtype)) +
+  geom_boxplot() +
+  theme_minimal() 
+```
+
+```{r}
+library(tidyr)
+library(dplyr)
+data_long <- data_luminal %>%
+  pivot_longer(
+    cols = ski67, 
+    names_to = "Time", 
+    values_to = "Ki67"
+  )
+
+data_long <- data_long[,c('pki67', 'Ki67',"prehtype")]
+colnames(data_long) <- c('Baseline','Surgery','prehtype')
+
+data_plot <- data_long %>%
+  pivot_longer(
+    cols = c(Baseline, Surgery),  
+    names_to = "Time",      
+    values_to = "Ki67_value"  
+  ) %>%
+  drop_na(Ki67_value)  
+
+
+ggplot(data_plot, aes(x = Time, y = Ki67_value, fill = prehtype)) +
+  geom_boxplot(outlier.shape = 21, outlier.fill = "black", outlier.size = 1.5) +  # 상자 그림
+  scale_fill_manual(values = c("LumA" = "#1f77b4", "LumB" = "#aec7e8", "HER2" = "#ffbb78")) +  # 색상 설정
+  theme_minimal() +
+  labs(
+    title = "Ki67 값 변화: Baseline vs Surgery",
+    x = "", 
+    y = "Ki67 (%)",
+    fill = "Subtype"
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    axis.text = element_text(size = 12),
+    axis.title.y = element_text(size = 14),
+    legend.position = "right"
+  ) +
+  theme_minimal() 
+```
+
+
+```{r}
+A <- data_new[data_new$prehtype == 'LumA'  ,   ]
+B <- data_new[data_new$prehtype == 'LumB'  ,   ]
+
+
+write.csv(A,'D:/대학원/2024-2/임상시험자료분석/PROJECT/DATA/유방암/lumA.csv')
+write.csv(B,'D:/대학원/2024-2/임상시험자료분석/PROJECT/DATA/유방암/lumB.csv')
+
+ 
+library(ggplot2)
+
+a <-  ggplot(data_new[(data_new$prehtype == 'LumA') | (data_new$prehtype == 'LumB'), ], 
+       aes(x = prehtype, y = PREALLRE, fill = prehtype)) +
+  geom_boxplot(outlier.shape = 21, outlier.fill = "black", outlier.size = 1.5) +
+  scale_fill_manual(values = c("LumA" = "#1f77b4", "LumB" = "#aec7e8")) + # HER2 제거
+  theme_minimal() +
+  labs(
+    title = "PRE ER: LumA vs LumB",
+    x = "", 
+    y = "ER"
+  ) +
+  theme(legend.position = "none")
+
+b <- ggplot(data_new[(data_new$prehtype == 'LumA') | (data_new$prehtype == 'LumB'), ], aes(x = prehtype, y = SXALLRED, fill = prehtype)) +
+  geom_boxplot(outlier.shape = 21, outlier.fill = "black", outlier.size = 1.5) +  # 상자 그림
+  scale_fill_manual(values = c("LumA" = "#1f77b4", "LumB" = "#aec7e8", "HER2" = "#ffbb78")) +  # 색상 설정
+  theme_minimal() +
+  labs(
+    title = "POST ER : LumA vs LumB",
+    x = "", 
+    y = "ER",
+    fill = "prehtype"
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    axis.text = element_text(size = 12),
+    axis.title.y = element_text(size = 14),
+    legend.position = "right"
+  ) +
+  theme_minimal() 
+
+
+a+b
+```
+
+```{r}
+A <- A[-which(apply(is.na(A),1,sum) >= 1),]  
+B <- B[-which(apply(is.na(B),1,sum) >= 1),]  
+
+
+mean(A$SXALLRED)
+mean(B$SXALLRED)
+
+mean(A$PREALLRE)
+mean(B$PREALLRE)
+```
+
+
+#로지스틱 회귀분석
+
+
+```{r}
+data_new <- data_new[-which(apply(is.na(data_new),1,sum) >= 1),]  
+
+data_new$pepi_0 <- ifelse(data_new$sx_pepi == 1, 0, 1)
+
+#Ki67이 10%미만인지
+data_new$Ki67_10 <- ifelse(data_new$pki67 <= 10, 1, 0)
+model = glm(pepi_0 ~ Ki67_10, data = data_new )
+summary(model)
+
+
+#LUMA인지 여부에 따라서
+data_new$lumA <- ifelse(data_new$prehtype == 'LumA', 1,0)
+model = glm(pepi_0 ~ lumA, data = data_new )
+summary(model)
+
+
+#T stage가 T2인지 여부에 따라서
+
+data_new$T2 <- ifelse(data_new$ctstagef == 'T2', 1,0)
+summary(glm(pepi_0 ~ T2, data = data_new ))
+
+
+#Baseline ER SCore의 점수에 따라서
+data_new$ER <- ifelse(data_new$PREALLRE >= 6 &data_new$PREALLRE <= 8 , 0,1)
+summary(glm(pepi_0 ~ ER, data = data_new ))
+
+#Baseline Histologic grade에 따라서
+data_new$HG <- ifelse(data_new$bxgrd == "GRADE I", 1,0)
+summary(glm(pepi_0 ~ HG, data = data_new ))
+
+
+```
+
+```{r}
+summary(glm(pepi_0 ~ HG + Ki67_10 + lumA + T2 + ER , data = data_new ))
+summary(glm(pepi_0 ~ HG + Ki67_10 +  T2 + ER , data = data_new ))
+summary(glm(pepi_0 ~ HG + lumA+ T2 + ER , data = data_new ))
+
+cor(data_new$lumA, data_new$Ki67_10)
+```
+
+
